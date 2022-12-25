@@ -1,0 +1,37 @@
+name: Automate ticket movement
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+env:
+  OWNER: ${{ secrets.OWNER }}
+  REPO: ${{ secrets.REPO }}
+  PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  COLUMN_ID: ${{ secrets.COLUMN_ID }}
+
+jobs:
+  move-tickets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Query tickets in in-progress column
+        run: |
+          curl -X GET \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/projects/$PROJECT_ID/columns/$COLUMN_ID/cards" > cards.json
+      
+      - name: Move tickets to Done column
+        run: |
+          for card in $(jq -r '.[] | .id' cards.json); do
+            curl -X POST \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              -d '{"column_id": "$COLUMN_ID"}' \
+              "https://api.github.com/projects/columns/cards/$card/moves"
+          done
